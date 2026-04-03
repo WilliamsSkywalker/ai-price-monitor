@@ -1,5 +1,7 @@
 # 🤖 AI API 价格监控器
 
+[English](#english) | 中文
+
 自动抓取并横向对比 **OpenAI**、**Anthropic (Claude)**、**Kimi (Moonshot)**、**DeepSeek** 四家 AI API 定价的 Python CLI 工具，支持迁移成本估算，并生成可视化 HTML / Markdown 报告。
 
 [![CI](https://github.com/WilliamsSkywalker/ai-price-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/WilliamsSkywalker/ai-price-monitor/actions/workflows/ci.yml)
@@ -262,6 +264,8 @@ MIT — 详见 [LICENSE](LICENSE)
 ---
 
 ---
+
+<a id="english"></a>
 
 # 🤖 AI API Price Monitor
 
