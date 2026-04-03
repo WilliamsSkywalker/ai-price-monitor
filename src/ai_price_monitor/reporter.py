@@ -1,0 +1,152 @@
+"""Markdown report generator."""
+
+from __future__ import annotations
+
+from datetime import date
+from pathlib import Path
+
+from ai_price_monitor import config
+from ai_price_monitor.calculator import estimate_all
+from ai_price_monitor.comparator import group_by_tier
+from ai_price_monitor.models import (
+    MonthlyUsage,
+    PriceDiff,
+    PriceRecord,
+    PriceSnapshot,
+    Tier,
+)
+
+_TIER_HEADER = {
+    Tier.CHEAP: "💚 Cheap Tier",
+    Tier.STANDARD: "🟡 Standard Tier",
+    Tier.PREMIUM: "🔴 Premium Tier",
+}
+
+
+def _resolve_output_dir(output_dir: Path | None) -> Path:
+    """Resolve the reports output directory, creating it if needed."""
+    if output_dir is None:
+        reports_dir = config.get("general", "reports_dir", "reports")
+        output_dir = Path(reports_dir)
+        if not output_dir.is_absolute():
+            root = Path(__file__).resolve().parents[2]
+            output_dir = root / output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
+def _scrape_status_line(snapshot: PriceSnapshot) -> str:
+    parts = []
+    for p in snapshot.providers:
+        status = "⚠️(fallback)" if p.fallback_used else "✅"
+        parts.append(f"{p.provider.value.capitalize()} {status}")
+    return " | ".join(parts)
+
+
+def _model_table_rows(models: list[PriceRecord]) -> str:
+    rows = ["| Provider | Model | Input $/1M | Output $/1M | Cache Read | Context |",
+            "|----------|-------|-----------|------------|------------|---------|"]
+    for m in sorted(models, key=lambda x: x.output_price_per_1m):
+        cache = f"${m.cache_read_price:.4f}" if m.cache_read_price else "-"
+        ctx = f"{m.context_window // 1000}K" if m.context_window else "-"
+        rows.append(
+            f"| {m.provider.value.upper()} | {m.model_name} "
+            f"| ${m.input_price_per_1m:.4f} | ${m.output_price_per_1m:.4f} "
+            f"| {cache} | {ctx} |"
+        )
+    return "\n".join(rows)
+
+
+def _diff_section(diff: PriceDiff | None) -> str:
+    if not diff or not diff.has_changes:
+        return "*No price changes since last snapshot.*\n"
+
+    lines = [f"*(vs {diff.old_date})*\n"]
+
+    if diff.added_models:
+        lines.append(f"**✨ New Models ({len(diff.added_models)}):**\n")
+        for m in diff.added_models:
+            lines.append(f"- `{m.provider.value}` / {m.model_name}")
+        lines.append("")
+
+    if diff.removed_models:
+        lines.append(f"**🗑️ Removed Models ({len(diff.removed_models)}):**\n")
+        for m in diff.removed_models:
+            lines.append(f"- `{m.provider.value}` / {m.model_name}")
+        lines.append("")
+
+    if diff.changed_models:
+        lines.append(f"**🔄 Price Changes ({len(diff.changed_models)}):**\n")
+        lines.append("| Provider | Model | Field | Old | New | Change |")
+        lines.append("|----------|-------|-------|-----|-----|--------|")
+        for ch in diff.changed_models:
+            direction = "📉" if ch.pct_change < 0 else "📈"
+            lines.append(
+                f"| {ch.provider.value.upper()} | {ch.model_name} | {ch.field} "
+                f"| ${ch.old_value:.4f} | ${ch.new_value:.4f} | {direction} {ch.pct_change:+.1f}% |"
+            )
+
+    return "\n".join(lines)
+
+
+def _cost_table(snapshot: PriceSnapshot, usage: MonthlyUsage) -> str:
+    estimates = estimate_all(snapshot, usage)
+    rows = [
+        "| # | Provider | Model | Monthly Cost |",
+        "|---|----------|-------|-------------|",
+    ]
+    for i, est in enumerate(estimates, 1):
+        rows.append(
+            f"| {i} | {est.provider.value.upper()} | {est.model_name} "
+            f"| ${est.monthly_cost_usd:.2f} |"
+        )
+    return "\n".join(rows)
+
+
+def generate_markdown(
+    snapshot: PriceSnapshot,
+    diff: PriceDiff | None = None,
+    usage: MonthlyUsage | None = None,
+) -> str:
+    """Generate a complete Markdown report string."""
+    usage = usage or MonthlyUsage(
+        input_tokens=config.get("calculator", "default_input_tokens", 10_000_000),
+        output_tokens=config.get("calculator", "default_output_tokens", 3_000_000),
+    )
+
+    tiers = group_by_tier(snapshot.get_all_models())
+    tier_sections = []
+    for tier in Tier:
+        models = tiers.get(tier, [])
+        if not models:
+            continue
+        tier_sections.append(f"### {_TIER_HEADER[tier]}\n\n{_model_table_rows(models)}")
+
+    lines = [
+        f"# AI API Pricing Report — {snapshot.snapshot_date}",
+        f"\n> 抓取状态: {_scrape_status_line(snapshot)}",
+        f"\n> Generated at: {snapshot.generated_at.strftime('%Y-%m-%d %H:%M UTC')}",
+        "\n## 📊 价格对比（按能力等级）\n",
+        "\n\n".join(tier_sections),
+        "\n## 🔄 价格变动（vs 上次快照）\n",
+        _diff_section(diff),
+        "\n## 💰 迁移成本估算\n",
+        f"*基于 {usage.input_tokens:,} input + {usage.output_tokens:,} output tokens/月*\n",
+        _cost_table(snapshot, usage),
+        f"\n---\n*Report generated by [ai-price-monitor](https://github.com/WilliamsSkywalker/ai-price-monitor)*\n",
+    ]
+    return "\n".join(lines)
+
+
+def save_markdown_report(
+    snapshot: PriceSnapshot,
+    diff: PriceDiff | None = None,
+    usage: MonthlyUsage | None = None,
+    output_dir: Path | None = None,
+) -> Path:
+    """Write markdown report to disk and return path."""
+    output_dir = _resolve_output_dir(output_dir)
+    content = generate_markdown(snapshot, diff, usage)
+    path = output_dir / f"{snapshot.snapshot_date}_report.md"
+    path.write_text(content, encoding="utf-8")
+    return path

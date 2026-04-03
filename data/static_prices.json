@@ -1,0 +1,221 @@
+{
+  "_comment": "Static fallback prices — manually maintained. Last updated: 2026-04-03.",
+  "_schema_version": "1.0",
+  "providers": {
+    "openai": {
+      "source_url": "https://openai.com/api/pricing",
+      "models": [
+        {
+          "model_id": "gpt-4o",
+          "model_name": "GPT-4o",
+          "provider": "openai",
+          "tier": "premium",
+          "input_price_per_1m": 2.50,
+          "output_price_per_1m": 10.00,
+          "cache_read_price": 1.25,
+          "cache_write_price": null,
+          "context_window": 128000,
+          "currency": "USD",
+          "notes": "Flagship multimodal model"
+        },
+        {
+          "model_id": "gpt-4o-mini",
+          "model_name": "GPT-4o mini",
+          "provider": "openai",
+          "tier": "cheap",
+          "input_price_per_1m": 0.15,
+          "output_price_per_1m": 0.60,
+          "cache_read_price": 0.075,
+          "cache_write_price": null,
+          "context_window": 128000,
+          "currency": "USD",
+          "notes": "Cost-efficient small model"
+        },
+        {
+          "model_id": "o1",
+          "model_name": "o1",
+          "provider": "openai",
+          "tier": "premium",
+          "input_price_per_1m": 15.00,
+          "output_price_per_1m": 60.00,
+          "cache_read_price": 7.50,
+          "cache_write_price": null,
+          "context_window": 200000,
+          "currency": "USD",
+          "notes": "Advanced reasoning model"
+        },
+        {
+          "model_id": "o3-mini",
+          "model_name": "o3-mini",
+          "provider": "openai",
+          "tier": "standard",
+          "input_price_per_1m": 1.10,
+          "output_price_per_1m": 4.40,
+          "cache_read_price": 0.55,
+          "cache_write_price": null,
+          "context_window": 200000,
+          "currency": "USD",
+          "notes": "Cost-efficient reasoning model"
+        },
+        {
+          "model_id": "gpt-4.1",
+          "model_name": "GPT-4.1",
+          "provider": "openai",
+          "tier": "standard",
+          "input_price_per_1m": 2.00,
+          "output_price_per_1m": 8.00,
+          "cache_read_price": 0.50,
+          "cache_write_price": null,
+          "context_window": 1047576,
+          "currency": "USD",
+          "notes": "Latest GPT-4.1 model"
+        },
+        {
+          "model_id": "gpt-4.1-mini",
+          "model_name": "GPT-4.1 mini",
+          "provider": "openai",
+          "tier": "cheap",
+          "input_price_per_1m": 0.40,
+          "output_price_per_1m": 1.60,
+          "cache_read_price": 0.10,
+          "cache_write_price": null,
+          "context_window": 1047576,
+          "currency": "USD",
+          "notes": "Cost-efficient GPT-4.1"
+        }
+      ]
+    },
+    "anthropic": {
+      "source_url": "https://www.anthropic.com/pricing",
+      "models": [
+        {
+          "model_id": "claude-opus-4-5",
+          "model_name": "Claude Opus 4.5",
+          "provider": "anthropic",
+          "tier": "premium",
+          "input_price_per_1m": 15.00,
+          "output_price_per_1m": 75.00,
+          "cache_read_price": 1.50,
+          "cache_write_price": 18.75,
+          "context_window": 200000,
+          "currency": "USD",
+          "notes": "Most capable Claude model"
+        },
+        {
+          "model_id": "claude-sonnet-4-5",
+          "model_name": "Claude Sonnet 4.5",
+          "provider": "anthropic",
+          "tier": "standard",
+          "input_price_per_1m": 3.00,
+          "output_price_per_1m": 15.00,
+          "cache_read_price": 0.30,
+          "cache_write_price": 3.75,
+          "context_window": 200000,
+          "currency": "USD",
+          "notes": "Balanced performance and cost"
+        },
+        {
+          "model_id": "claude-haiku-3-5",
+          "model_name": "Claude Haiku 3.5",
+          "provider": "anthropic",
+          "tier": "cheap",
+          "input_price_per_1m": 0.80,
+          "output_price_per_1m": 4.00,
+          "cache_read_price": 0.08,
+          "cache_write_price": 1.00,
+          "context_window": 200000,
+          "currency": "USD",
+          "notes": "Fast and cost-efficient"
+        }
+      ]
+    },
+    "kimi": {
+      "source_url": "https://platform.moonshot.cn/docs/pricing/chat",
+      "models": [
+        {
+          "model_id": "moonshot-v1-8k",
+          "model_name": "Moonshot v1 8K",
+          "provider": "kimi",
+          "tier": "cheap",
+          "input_price_per_1m": 0.17,
+          "output_price_per_1m": 0.17,
+          "cache_read_price": null,
+          "cache_write_price": null,
+          "context_window": 8000,
+          "currency": "CNY",
+          "notes": "CNY 1.2/1M tokens converted at 7.25"
+        },
+        {
+          "model_id": "moonshot-v1-32k",
+          "model_name": "Moonshot v1 32K",
+          "provider": "kimi",
+          "tier": "standard",
+          "input_price_per_1m": 0.33,
+          "output_price_per_1m": 0.33,
+          "cache_read_price": null,
+          "cache_write_price": null,
+          "context_window": 32000,
+          "currency": "CNY",
+          "notes": "CNY 2.4/1M tokens converted at 7.25"
+        },
+        {
+          "model_id": "moonshot-v1-128k",
+          "model_name": "Moonshot v1 128K",
+          "provider": "kimi",
+          "tier": "premium",
+          "input_price_per_1m": 0.83,
+          "output_price_per_1m": 0.83,
+          "cache_read_price": null,
+          "cache_write_price": null,
+          "context_window": 128000,
+          "currency": "CNY",
+          "notes": "CNY 6.0/1M tokens converted at 7.25"
+        },
+        {
+          "model_id": "kimi-latest",
+          "model_name": "Kimi Latest",
+          "provider": "kimi",
+          "tier": "standard",
+          "input_price_per_1m": 0.55,
+          "output_price_per_1m": 2.21,
+          "cache_read_price": null,
+          "cache_write_price": null,
+          "context_window": 128000,
+          "currency": "CNY",
+          "notes": "CNY 4.0 input / 16.0 output per 1M tokens at 7.25"
+        }
+      ]
+    },
+    "deepseek": {
+      "source_url": "https://platform.deepseek.com/pricing",
+      "models": [
+        {
+          "model_id": "deepseek-chat",
+          "model_name": "DeepSeek-V3",
+          "provider": "deepseek",
+          "tier": "cheap",
+          "input_price_per_1m": 0.27,
+          "output_price_per_1m": 1.10,
+          "cache_read_price": 0.07,
+          "cache_write_price": null,
+          "context_window": 64000,
+          "currency": "USD",
+          "notes": "Cache miss: $0.27, cache hit: $0.07 per 1M input tokens"
+        },
+        {
+          "model_id": "deepseek-reasoner",
+          "model_name": "DeepSeek-R1",
+          "provider": "deepseek",
+          "tier": "standard",
+          "input_price_per_1m": 0.55,
+          "output_price_per_1m": 2.19,
+          "cache_read_price": 0.14,
+          "cache_write_price": null,
+          "context_window": 64000,
+          "currency": "USD",
+          "notes": "Cache miss: $0.55, cache hit: $0.14 per 1M input tokens"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,34 @@
+# AI Price Monitor Configuration
+
+[general]
+# USD to CNY exchange rate (used to convert Kimi/Moonshot prices)
+usd_to_cny = 7.25
+
+# Default output directory for reports
+reports_dir = "reports"
+
+# Default directory for price history snapshots
+history_dir = "data/price_history"
+
+[schedule]
+# Default interval in minutes for `ai-price-monitor schedule`
+interval_minutes = 1440  # 24 hours
+
+[scraping]
+# HTTP request timeout in seconds
+timeout_seconds = 30
+
+# Number of retry attempts on network failure
+max_retries = 3
+
+# Delay between retries in seconds
+retry_delay_seconds = 2
+
+# User-Agent header for HTTP requests
+user_agent = "Mozilla/5.0 (compatible; ai-price-monitor/0.1)"
+
+[calculator]
+# Default monthly token usage for cost estimation
+default_input_tokens = 10_000_000
+default_output_tokens = 3_000_000
+default_cache_read_tokens = 0
