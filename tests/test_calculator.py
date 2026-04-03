@@ -33,7 +33,7 @@ def test_estimate_cost_with_cache(sample_openai_models):
 
 
 def test_estimate_cost_zero_usage():
-    from tests.conftest import _make_record
+    from conftest import _make_record
     model = _make_record("test", Provider.DEEPSEEK, Tier.CHEAP, 0.27, 1.10)
     usage = MonthlyUsage(input_tokens=0, output_tokens=0)
     est = estimate_cost(model, usage)
