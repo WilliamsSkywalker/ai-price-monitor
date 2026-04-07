@@ -9,18 +9,9 @@ from bs4 import BeautifulSoup
 
 from ai_price_monitor.models import PriceRecord, Provider, Tier
 
-from .base import BaseScraper
+from .base import BaseScraper, _parse_price, _slug
 
 logger = logging.getLogger(__name__)
-
-
-def _clean_price(text: str) -> float:
-    """Extract float dollar value from strings like '$3 / MTok' or '$3.00'."""
-    text = text.replace(",", "").strip()
-    match = re.search(r"\$?([\d.]+)", text)
-    if not match:
-        raise ValueError(f"Cannot parse price from: {text!r}")
-    return float(match.group(1))
 
 
 def _classify_tier(model_name: str) -> Tier:
@@ -75,8 +66,8 @@ class AnthropicScraper(BaseScraper):
                 model_name = texts[col_model]
                 if not model_name or model_name.lower() in ("model", ""):
                     continue
-                input_p = _clean_price(texts[col_input])
-                output_p = _clean_price(texts[col_output])
+                input_p = _parse_price(texts[col_input])
+                output_p = _parse_price(texts[col_output])
                 context = None
                 if col_context and col_context < len(texts):
                     ctx_text = texts[col_context].replace(",", "").replace("K", "000")
@@ -89,11 +80,11 @@ class AnthropicScraper(BaseScraper):
                 for i, h in enumerate(headers):
                     if "cache" in h and "read" in h and i < len(texts):
                         try:
-                            cache_read = _clean_price(texts[i])
+                            cache_read = _parse_price(texts[i])
                         except ValueError:
                             pass
 
-                model_id = model_name.lower().replace(" ", "-").replace(".", "-")
+                model_id = _slug(model_name)
                 records.append(
                     PriceRecord(
                         model_id=model_id,
@@ -129,7 +120,7 @@ class AnthropicScraper(BaseScraper):
                 try:
                     records.append(
                         PriceRecord(
-                            model_id=model_name.lower().replace(" ", "-"),
+                            model_id=_slug(model_name),
                             model_name=model_name,
                             provider=Provider.ANTHROPIC,
                             tier=_classify_tier(model_name),

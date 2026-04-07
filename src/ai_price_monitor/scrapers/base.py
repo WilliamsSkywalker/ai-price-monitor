@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
@@ -15,6 +16,28 @@ from ai_price_monitor import config
 from ai_price_monitor.models import Provider, ProviderPricing, PriceRecord
 
 logger = logging.getLogger(__name__)
+
+_BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
+
+
+def _parse_price(text: str) -> float:
+    """Extract a dollar (or bare numeric) price from strings like '$2.50 / 1M tokens'."""
+    text = text.replace(",", "").strip()
+    match = re.search(r"\$?([\d.]+)", text)
+    if not match:
+        raise ValueError(f"Cannot parse price from: {text!r}")
+    return float(match.group(1))
+
+
+def _slug(name: str) -> str:
+    """Turn a display name into a URL-safe model-id slug (e.g. 'GPT-4o Mini' → 'gpt-4o-mini')."""
+    s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return re.sub(r"-+", "-", s)
+
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _STATIC_PRICES_PATH = _PROJECT_ROOT / "data" / "static_prices.json"
@@ -99,6 +122,32 @@ class BaseScraper(ABC):
         for m in models:
             if m.input_price_per_1m < 0 or m.output_price_per_1m < 0:
                 raise ValueError(f"Negative price for model {m.model_id}")
+
+    def _fetch_html_playwright(self, url: str) -> str:
+        """Fetch a JS-rendered page via Playwright (Chromium headless).
+
+        Raises ImportError if playwright is not installed.
+        Raises RuntimeError on navigation failure.
+        """
+        try:
+            from playwright.sync_api import sync_playwright  # type: ignore[import]
+        except ImportError as exc:
+            raise ImportError(
+                "playwright is not installed. Run: pip install 'ai-price-monitor[playwright]' "
+                "&& playwright install chromium"
+            ) from exc
+
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(user_agent=_BROWSER_UA)
+                # timeout * 1000 converts seconds → ms; ×2 gives extra headroom for slow pages
+                page.goto(url, timeout=self.timeout * 2000, wait_until="load")
+                # Give JS extra time to render dynamic content
+                page.wait_for_timeout(3000)
+                return page.content()
+            finally:
+                browser.close()
 
     def scrape(self) -> ProviderPricing:
         """Fetch, parse, validate → fall back to static on any error."""

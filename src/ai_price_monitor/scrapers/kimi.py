@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from ai_price_monitor import config
 from ai_price_monitor.models import PriceRecord, Provider, Tier
 
-from .base import BaseScraper
+from .base import BaseScraper, _parse_price, _slug
 
 logger = logging.getLogger(__name__)
 
@@ -18,15 +18,6 @@ logger = logging.getLogger(__name__)
 def _cny_to_usd(cny: float) -> float:
     rate = config.get("general", "usd_to_cny", 7.25)
     return round(cny / rate, 6)
-
-
-def _parse_price(text: str) -> float:
-    """Extract numeric price from strings like '¥1.2/百万tokens' or '1.2'."""
-    text = text.replace(",", "").strip()
-    match = re.search(r"[\d.]+", text)
-    if not match:
-        raise ValueError(f"Cannot parse price from: {text!r}")
-    return float(match.group())
 
 
 def _classify_tier(model_id: str) -> Tier:
@@ -90,7 +81,7 @@ class KimiScraper(BaseScraper):
                 if ctx_match:
                     context = int(ctx_match.group(1)) * 1000
 
-                model_id = model_name.lower().replace(" ", "-").replace("_", "-")
+                model_id = _slug(model_name)
                 records.append(
                     PriceRecord(
                         model_id=model_id,

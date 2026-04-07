@@ -1,4 +1,4 @@
-"""DeepSeek pricing scraper — parses cache-miss/hit input prices."""
+"""DeepSeek pricing scraper — parses the API docs pricing page."""
 
 from __future__ import annotations
 
@@ -9,17 +9,11 @@ from bs4 import BeautifulSoup
 
 from ai_price_monitor.models import PriceRecord, Provider, Tier
 
-from .base import BaseScraper
+from .base import BaseScraper, _parse_price
 
 logger = logging.getLogger(__name__)
 
-
-def _parse_price(text: str) -> float:
-    text = text.replace(",", "").strip()
-    match = re.search(r"\$?([\d.]+)", text)
-    if not match:
-        raise ValueError(f"Cannot parse price from: {text!r}")
-    return float(match.group(1))
+_CONTEXT_WINDOW = 128_000
 
 
 def _classify_tier(model_id: str) -> Tier:
@@ -31,127 +25,93 @@ def _classify_tier(model_id: str) -> Tier:
 
 class DeepSeekScraper(BaseScraper):
     provider = Provider.DEEPSEEK
-    source_url = "https://platform.deepseek.com/pricing"
+    source_url = "https://api-docs.deepseek.com/quick_start/pricing"
 
     def _parse(self, html: str) -> list[PriceRecord]:
         soup = BeautifulSoup(html, "lxml")
-        records: list[PriceRecord] = []
+        table = soup.find("table")
+        if not table:
+            raise ValueError("No table found on DeepSeek pricing page")
 
-        for table in soup.find_all("table"):
-            records.extend(self._parse_table(table))
-
-        if not records:
-            records.extend(self._parse_structured_divs(soup))
-
-        if not records:
-            raise ValueError("No DeepSeek pricing records found")
-        return records
-
-    def _parse_table(self, table) -> list[PriceRecord]:
-        records = []
         rows = table.find_all("tr")
         if not rows:
-            return records
+            raise ValueError("Empty table on DeepSeek pricing page")
 
-        headers = [th.get_text(" ", strip=True).lower() for th in rows[0].find_all(["th", "td"])]
+        # --- Header row: extract model names (skip first cell "MODEL") ---
+        header_cells = rows[0].find_all(["th", "td"])
+        model_ids = []
+        for cell in header_cells[1:]:
+            name = cell.get_text(" ", strip=True)
+            if name:
+                model_ids.append(name)
 
-        # Detect columns
-        col_model = next((i for i, h in enumerate(headers) if "model" in h or "模型" in h), 0)
-        col_input_miss = next(
-            (i for i, h in enumerate(headers) if ("input" in h or "输入" in h) and "cache" not in h),
-            1,
-        )
-        col_cache_hit = next(
-            (
-                i
-                for i, h in enumerate(headers)
-                if "cache" in h and ("hit" in h or "命中" in h or "read" in h)
-            ),
-            None,
-        )
-        col_output = next(
-            (i for i, h in enumerate(headers) if "output" in h or "输出" in h), 2
-        )
+        if not model_ids:
+            raise ValueError("Could not parse model names from DeepSeek table header")
+
+        # --- Walk remaining rows to collect prices by label ---
+        prices: dict[str, float | None] = {
+            "cache_hit": None,
+            "cache_miss": None,
+            "output": None,
+        }
 
         for row in rows[1:]:
             cells = row.find_all(["td", "th"])
-            if len(cells) < 2:
-                continue
+            # Flatten text from all cells
             texts = [c.get_text(" ", strip=True) for c in cells]
-            try:
-                model_name = texts[col_model] if col_model < len(texts) else ""
-                if not model_name or model_name.lower() in ("model", ""):
-                    continue
+            combined = " ".join(texts).lower()
 
-                input_miss = _parse_price(texts[col_input_miss]) if col_input_miss < len(texts) else 0.0
-                output_p = _parse_price(texts[col_output]) if col_output < len(texts) else 0.0
-                cache_read = None
-                if col_cache_hit and col_cache_hit < len(texts):
-                    try:
-                        cache_read = _parse_price(texts[col_cache_hit])
-                    except ValueError:
-                        pass
-
-                # Detect context window
-                context = None
-                ctx_match = re.search(r"(\d+)\s*[Kk]", model_name)
-                if ctx_match:
-                    context = int(ctx_match.group(1)) * 1000
-
-                model_id = (
-                    model_name.lower()
-                    .replace(" ", "-")
-                    .replace("_", "-")
-                )
-                if not model_id.startswith("deepseek"):
-                    model_id = f"deepseek-{model_id}"
-
-                records.append(
-                    PriceRecord(
-                        model_id=model_id,
-                        model_name=model_name,
-                        provider=Provider.DEEPSEEK,
-                        tier=_classify_tier(model_id),
-                        input_price_per_1m=input_miss,
-                        output_price_per_1m=output_p,
-                        cache_read_price=cache_read,
-                        context_window=context,
-                        currency="USD",
-                        notes="Cache-miss input price; cache-hit stored in cache_read_price",
-                    )
-                )
-            except (ValueError, IndexError) as exc:
-                logger.debug("Skipping DeepSeek row: %s", exc)
-        return records
-
-    def _parse_structured_divs(self, soup: BeautifulSoup) -> list[PriceRecord]:
-        """Fallback div-based parsing for JS-heavy pages."""
-        records = []
-        text = soup.get_text(" ")
-        # Match known model names
-        pattern = re.compile(
-            r"(deepseek-(?:chat|reasoner|coder|v[0-9]|r[0-9])[\w-]*)"
-            r".*?\$([\d.]+).*?\$([\d.]+)",
-            re.I,
-        )
-        seen = set()
-        for m in pattern.finditer(text):
-            model_id = m.group(1).lower()
-            if model_id in seen:
+            # Try to extract a price from the last non-empty cell
+            price_text = next(
+                (t for t in reversed(texts) if re.search(r"\$[\d.]+", t)),
+                None,
+            )
+            if price_text is None:
                 continue
-            seen.add(model_id)
+
             try:
-                records.append(
-                    PriceRecord(
-                        model_id=model_id,
-                        model_name=m.group(1),
-                        provider=Provider.DEEPSEEK,
-                        tier=_classify_tier(model_id),
-                        input_price_per_1m=float(m.group(2)),
-                        output_price_per_1m=float(m.group(3)),
-                        currency="USD",
-                    )
-                )
+                price = _parse_price(price_text)
             except ValueError:
                 continue
+
+            if "cache hit" in combined or "cache_hit" in combined:
+                prices["cache_hit"] = price
+            elif "cache miss" in combined or "cache_miss" in combined:
+                prices["cache_miss"] = price
+            elif "output" in combined and "input" not in combined:
+                prices["output"] = price
+
+        # Both models currently share the same pricing
+        cache_miss = prices["cache_miss"]
+        cache_hit = prices["cache_hit"]
+        output_p = prices["output"]
+
+        if cache_miss is None or output_p is None:
+            raise ValueError(
+                f"Incomplete DeepSeek prices: cache_miss={cache_miss}, output={output_p}"
+            )
+
+        records: list[PriceRecord] = []
+        for raw_name in model_ids:
+            model_id = raw_name.lower().replace(" ", "-")
+            if not model_id.startswith("deepseek"):
+                model_id = f"deepseek-{model_id}"
+
+            records.append(
+                PriceRecord(
+                    model_id=model_id,
+                    model_name=raw_name,
+                    provider=Provider.DEEPSEEK,
+                    tier=_classify_tier(model_id),
+                    input_price_per_1m=cache_miss,
+                    output_price_per_1m=output_p,
+                    cache_read_price=cache_hit,
+                    context_window=_CONTEXT_WINDOW,
+                    currency="USD",
+                    notes="Cache-miss input price; cache-hit price stored in cache_read_price",
+                )
+            )
+
+        if not records:
+            raise ValueError("No DeepSeek pricing records parsed")
         return records
